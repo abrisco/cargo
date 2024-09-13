@@ -266,6 +266,24 @@ pub trait CommandExt: Sized {
         ._arg(unsupported_short_arg)
     }
 
+    fn arg_host_triple(self, target: &'static str) -> Self {
+        let unsupported_short_arg = {
+            let value_parser = UnknownArgumentValueParser::suggest_arg("--host");
+            Arg::new("unsupported-short-host-flag")
+                .help("")
+                .short('H')
+                .value_parser(value_parser)
+                .action(ArgAction::SetTrue)
+                .hide(true)
+        };
+        self._arg(
+            opt("host", target)
+                .value_name("TRIPLE")
+                .help_heading(heading::COMPILATION_OPTIONS),
+        )
+        ._arg(unsupported_short_arg)
+    }
+
     fn arg_target_dir(self) -> Self {
         self._arg(
             opt("target-dir", "Directory for all generated artifacts")
@@ -585,6 +603,10 @@ Run `{cmd}` to see possible targets."
             );
         }
         Ok(self._values_of("target"))
+    }
+
+    fn host(&self) -> Option<String> {
+        self._value_of("host").map(|s| s.to_owned())
     }
 
     fn get_profile_name(

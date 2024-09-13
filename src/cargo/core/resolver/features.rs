@@ -863,7 +863,7 @@ impl<'a, 'gctx> FeatureResolver<'a, 'gctx> {
                         let artifact_target_keys = dep
                             .artifact()
                             .map(|artifact| {
-                                let host_triple = self.target_data.rustc.host;
+                                let host_triple = self.target_data.get_host_target().rustc_target();
                                 // not all targets may be queried before resolution since artifact dependencies
                                 // and per-pkg-targets are not immediately known.
                                 let mut activate_target = |target| {

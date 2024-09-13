@@ -864,6 +864,8 @@ pub struct RustcTargetData<'gctx> {
     host_config: TargetConfig,
     /// Information about the host platform.
     host_info: TargetInfo,
+    /// The host platform triple.
+    host_target: CompileTarget,
 
     /// Build information for targets that we're building for.
     target_config: HashMap<CompileTarget, TargetConfig>,
@@ -879,17 +881,41 @@ impl<'gctx> RustcTargetData<'gctx> {
     ) -> CargoResult<RustcTargetData<'gctx>> {
         let gctx = ws.gctx();
         let rustc = gctx.load_global_rustc(Some(ws))?;
+        let host = rustc.host.as_str();
+
+        RustcTargetData::new_internal(ws, gctx, rustc, requested_kinds, host)
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub fn new_with_host(
+        ws: &Workspace<'gctx>,
+        requested_kinds: &[CompileKind],
+        host: &str,
+    ) -> CargoResult<RustcTargetData<'gctx>> {
+        let gctx = ws.gctx();
+        let rustc = gctx.load_global_rustc(Some(ws))?;
+
+        RustcTargetData::new_internal(ws, gctx, rustc, requested_kinds, host)
+    }
+
+    fn new_internal(
+        ws: &Workspace<'gctx>,
+        gctx: &'gctx GlobalContext,
+        rustc: Rustc,
+        requested_kinds: &[CompileKind],
+        host: &str,
+    ) -> CargoResult<RustcTargetData<'gctx>> {
         let mut target_config = HashMap::new();
         let mut target_info = HashMap::new();
         let target_applies_to_host = gctx.target_applies_to_host()?;
-        let host_target = CompileTarget::new(&rustc.host)?;
-        let host_info = TargetInfo::new(gctx, requested_kinds, &rustc, CompileKind::Host)?;
+        let host_target = CompileTarget::new(&host)?;
+        let host_info = TargetInfo::new(gctx, requested_kinds, &rustc, CompileKind::Target(host_target))?;
 
         // This config is used for link overrides and choosing a linker.
         let host_config = if target_applies_to_host {
-            gctx.target_cfg_triple(&rustc.host)?
+            gctx.target_cfg_triple(&host)?
         } else {
-            gctx.host_cfg_triple(&rustc.host)?
+            gctx.host_cfg_triple(&host)?
         };
 
         // This is a hack. The unit_dependency graph builder "pretends" that
@@ -898,7 +924,7 @@ impl<'gctx> RustcTargetData<'gctx> {
         // needs access to the target config data, create a copy so that it
         // can be found. See `rebuild_unit_graph_shared` for why this is done.
         if requested_kinds.iter().any(CompileKind::is_host) {
-            target_config.insert(host_target, gctx.target_cfg_triple(&rustc.host)?);
+            target_config.insert(host_target, gctx.target_cfg_triple(&host)?);
 
             // If target_applies_to_host is true, the host_info is the target info,
             // otherwise we need to build target info for the target.
@@ -921,6 +947,7 @@ impl<'gctx> RustcTargetData<'gctx> {
             requested_kinds: requested_kinds.into(),
             host_config,
             host_info,
+            host_target,
             target_config,
             target_info,
         };
@@ -956,6 +983,11 @@ impl<'gctx> RustcTargetData<'gctx> {
         Ok(res)
     }
 
+    /// Access the target for the host platform.
+    pub fn get_host_target(&self) -> &CompileTarget {
+        &self.host_target
+    }
+
     /// Insert `kind` into our `target_info` and `target_config` members if it isn't present yet.
     pub fn merge_compile_kind(&mut self, kind: CompileKind) -> CargoResult<()> {
         if let CompileKind::Target(target) = kind {
@@ -977,7 +1009,7 @@ impl<'gctx> RustcTargetData<'gctx> {
     /// configuration in Cargo or presenting to users.
     pub fn short_name<'a>(&'a self, kind: &'a CompileKind) -> &'a str {
         match kind {
-            CompileKind::Host => &self.rustc.host,
+            CompileKind::Host => &self.host_target.rustc_target().as_str(),
             CompileKind::Target(target) => target.short_name(),
         }
     }

@@ -94,6 +94,10 @@ pub fn cli() -> Command {
             "Filter dependencies matching the given target-triple (default host platform). \
             Pass `all` to include all targets.",
         )
+        .arg_host_triple(
+            "An optional taregt-triple to use as the host platform when resolving host \
+            (build and proc-macro) dependencies."
+        )
         .arg_manifest_path()
         .arg_lockfile_path()
         .after_help(color_print::cstr!(
@@ -156,6 +160,7 @@ pub fn exec(gctx: &mut GlobalContext, args: &ArgMatches) -> CliResult {
         args.targets()?
     };
     let target = tree::Target::from_cli(targets);
+    let host = args.host();
 
     let (edge_kinds, no_proc_macro) = parse_edge_kinds(gctx, args)?;
     let graph_features = edge_kinds.contains(&EdgeKind::Feature);
@@ -214,6 +219,7 @@ subtree of the package given to -p.\n\
         cli_features: args.cli_features()?,
         packages,
         target,
+        host,
         edge_kinds,
         invert,
         pkgs_to_prune,

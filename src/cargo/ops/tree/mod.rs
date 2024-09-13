@@ -24,6 +24,8 @@ pub struct TreeOptions {
     pub packages: Packages,
     /// The platform to filter for.
     pub target: Target,
+    /// The host platform to filter for.
+    pub host: Option<String>,
     /// The dependency kinds to display.
     pub edge_kinds: HashSet<EdgeKind>,
     pub invert: Vec<String>,
@@ -116,7 +118,10 @@ pub fn build_and_print(ws: &Workspace<'_>, opts: &TreeOptions) -> CargoResult<()
     // TODO: Target::All is broken with -Zfeatures=itarget. To handle that properly,
     // `FeatureResolver` will need to be taught what "all" means.
     let requested_kinds = CompileKind::from_requested_targets(ws.gctx(), &requested_targets)?;
-    let mut target_data = RustcTargetData::new(ws, &requested_kinds)?;
+    let mut target_data = match &opts.host {
+        Some(host) => RustcTargetData::new_with_host(ws, &requested_kinds, host)?,
+        None => RustcTargetData::new(ws, &requested_kinds)?,
+    };
     let specs = opts.packages.to_package_id_specs(ws)?;
     let has_dev = if opts
         .edge_kinds
